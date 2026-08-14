@@ -8,6 +8,7 @@ export interface ParsedBancarellaRow {
   superficie: number | null
   note: string | null
   geometry_geojson: GeoGeometry
+  mercato_id: string | null
 }
 
 export interface SkippedFeature {
@@ -140,7 +141,7 @@ export function guessFieldMapping(keys: string[]): Partial<FieldMapping> {
 }
 
 /** Applica la mappatura scelta dall'utente alle feature grezze, producendo le righe pronte per Supabase. */
-export function buildRows(features: RawFeature[], mapping: FieldMapping): ParseResult {
+export function buildRows(features: RawFeature[], mapping: FieldMapping, mercatoId: string | null = null): ParseResult {
   const rows: ParsedBancarellaRow[] = []
   const skipped: SkippedFeature[] = []
 
@@ -181,6 +182,7 @@ export function buildRows(features: RawFeature[], mapping: FieldMapping): ParseR
       superficie: mapping.superficie ? toNumberOrNull(props[mapping.superficie]) : null,
       note: mapping.note ? toStringOrNull(props[mapping.note]) : null,
       geometry_geojson: geometry as GeoGeometry,
+      mercato_id: mercatoId,
     })
   })
 

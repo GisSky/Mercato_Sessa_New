@@ -6,6 +6,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Operatori from './pages/Operatori'
 import Mappa from './pages/Mappa'
+import Bancarelle from './pages/Bancarelle'
 import Assegnazioni from './pages/Assegnazioni'
 import Importa from './pages/Importa'
 import CambiaPassword from './pages/CambiaPassword'
@@ -32,6 +33,16 @@ export default function App() {
               <ProtectedRoute>
                 <Layout>
                   <Mappa />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/bancarelle"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Bancarelle />
                 </Layout>
               </ProtectedRoute>
             }

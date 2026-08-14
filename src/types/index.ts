@@ -33,6 +33,16 @@ export interface Operatore {
 
 export type OperatoreInput = Omit<Operatore, 'id' | 'created_at'>
 
+export interface Mercato {
+  id: string
+  nome: string
+  indirizzo: string | null
+  note: string | null
+  created_at: string
+}
+
+export type MercatoInput = Omit<Mercato, 'id' | 'created_at'>
+
 export interface Bancarella {
   id: string
   id_posto: string
@@ -41,6 +51,7 @@ export interface Bancarella {
   superficie: number | null
   note: string | null
   geometry_geojson: GeoGeometry
+  mercato_id: string | null
   created_at: string
 }
 

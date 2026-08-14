@@ -22,6 +22,18 @@ create table if not exists public.operatori (
 );
 
 -- ---------------------------------------------------------
+-- Tabella: mercati
+-- Piazze/mercati fisici distinti gestiti dal Comune.
+-- ---------------------------------------------------------
+create table if not exists public.mercati (
+  id uuid primary key default gen_random_uuid(),
+  nome text not null unique,
+  indirizzo text,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------
 -- Tabella: bancarelle
 -- ---------------------------------------------------------
 create table if not exists public.bancarelle (
@@ -32,8 +44,13 @@ create table if not exists public.bancarelle (
   superficie numeric,
   note text,
   geometry_geojson jsonb not null,
+  mercato_id uuid references public.mercati(id),
   created_at timestamptz not null default now()
 );
+
+-- Da eseguire anche se la tabella bancarelle esiste già da prima di questa modifica:
+alter table public.bancarelle add column if not exists mercato_id uuid references public.mercati(id);
+create index if not exists idx_bancarelle_mercato on public.bancarelle(mercato_id);
 
 -- ---------------------------------------------------------
 -- Tabella: assegnazioni
@@ -60,9 +77,16 @@ create index if not exists idx_assegnazioni_operatore on public.assegnazioni(ope
 alter table public.operatori enable row level security;
 alter table public.bancarelle enable row level security;
 alter table public.assegnazioni enable row level security;
+alter table public.mercati enable row level security;
 
 create policy "Utenti autenticati - accesso completo operatori"
   on public.operatori for all
+  to authenticated
+  using (true)
+  with check (true);
+
+create policy "Utenti autenticati - accesso completo mercati"
+  on public.mercati for all
   to authenticated
   using (true)
   with check (true);

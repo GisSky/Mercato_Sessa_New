@@ -10,10 +10,13 @@ import {
   type ParseResult,
 } from '../utils/importGeo'
 import { StatoBancarellaBadge } from '../components/StatoBadge'
+import { useMercati } from '../hooks/useMercati'
 
 const NESSUNO = ''
+const NUOVO_MERCATO = '__nuovo__'
 
 export default function Importa() {
+  const { mercati, creaMercato } = useMercati()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState<string | null>(null)
   const [parsing, setParsing] = useState(false)
@@ -22,6 +25,10 @@ export default function Importa() {
   const [inspected, setInspected] = useState<InspectResult | null>(null)
   const [mapping, setMapping] = useState<FieldMapping | null>(null)
   const [result, setResult] = useState<ParseResult | null>(null)
+
+  const [mercatoId, setMercatoId] = useState<string>(NESSUNO)
+  const [nuovoMercatoNome, setNuovoMercatoNome] = useState('')
+  const [creandoMercato, setCreandoMercato] = useState(false)
 
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
@@ -67,9 +74,21 @@ export default function Importa() {
       superficie: mapping.superficie || undefined,
       note: mapping.note || undefined,
     }
-    setResult(buildRows(inspected.features, cleanMapping))
+    setResult(buildRows(inspected.features, cleanMapping, mercatoId || null))
     setImportedCount(null)
     setImportError(null)
+  }
+
+  async function handleNuovoMercato() {
+    const nome = nuovoMercatoNome.trim()
+    if (!nome) return
+    setCreandoMercato(true)
+    const creato = await creaMercato(nome)
+    setCreandoMercato(false)
+    if (creato) {
+      setMercatoId(creato.id)
+      setNuovoMercatoNome('')
+    }
   }
 
   async function handleImport() {
@@ -160,6 +179,45 @@ export default function Importa() {
             <p className="text-sm text-slate-500">
               {inspected.features.length} feature trovate in «{fileName}». Indica a quale campo corrisponde ogni
               informazione.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Mercato di destinazione</label>
+            <select
+              className="input sm:w-auto"
+              value={mercatoId}
+              onChange={(e) => setMercatoId(e.target.value)}
+            >
+              <option value={NESSUNO}>— nessun mercato —</option>
+              {mercati.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.nome}
+                </option>
+              ))}
+              <option value={NUOVO_MERCATO}>+ Nuovo mercato…</option>
+            </select>
+            {mercatoId === NUOVO_MERCATO && (
+              <div className="mt-2 flex gap-2">
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Nome del nuovo mercato"
+                  value={nuovoMercatoNome}
+                  onChange={(e) => setNuovoMercatoNome(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={handleNuovoMercato}
+                  disabled={creandoMercato || !nuovoMercatoNome.trim()}
+                  className="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-60 whitespace-nowrap"
+                >
+                  {creandoMercato ? 'Creazione…' : 'Crea'}
+                </button>
+              </div>
+            )}
+            <p className="text-xs text-slate-400 mt-1">
+              Tutte le bancarelle di questo file verranno assegnate al mercato selezionato.
             </p>
           </div>
 

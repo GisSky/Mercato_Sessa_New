@@ -1,16 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Polygon, Tooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css'
+import '@geoman-io/leaflet-geoman-free'
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient'
-import type { Bancarella, Operatore, StatoBancarella } from '../types'
+import type { Bancarella, BancarellaInput, GeoGeometry, Operatore, StatoBancarella } from '../types'
 import { statoBancarellaColors } from '../components/StatoBadge'
 import BancarellaModal from '../components/BancarellaModal'
+import BancarellaFormModal from '../components/BancarellaFormModal'
 import { geometryLatLngs, polygonRings } from '../utils/geo'
+import { useMercati } from '../hooks/useMercati'
 
 const DEFAULT_CENTER: [number, number] = [41.9028, 12.4964]
 
 export default function Mappa() {
+  const { mercati } = useMercati()
   const [bancarelle, setBancarelle] = useState<Bancarella[]>([])
   const [operatori, setOperatori] = useState<Operatore[]>([])
   const [loading, setLoading] = useState(true)
@@ -19,6 +24,14 @@ export default function Mappa() {
 
   const [filtroStato, setFiltroStato] = useState<StatoBancarella | 'tutti'>('tutti')
   const [filtroTipologia, setFiltroTipologia] = useState<string>('tutte')
+  const [filtroMercato, setFiltroMercato] = useState<string>('tutti')
+
+  const [editingShapeId, setEditingShapeId] = useState<string | null>(null)
+  const [savingShape, setSavingShape] = useState(false)
+  const editableShapeRef = useRef<{ save: () => GeoGeometry | null }>(null)
+
+  const [drawingNew, setDrawingNew] = useState(false)
+  const [nuovaGeometria, setNuovaGeometria] = useState<GeoGeometry | null>(null)
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -51,17 +64,64 @@ export default function Mappa() {
     return bancarelle.filter((b) => {
       if (filtroStato !== 'tutti' && b.stato !== filtroStato) return false
       if (filtroTipologia !== 'tutte' && b.tipologia !== filtroTipologia) return false
+      if (filtroMercato !== 'tutti' && b.mercato_id !== filtroMercato) return false
       return true
     })
-  }, [bancarelle, filtroStato, filtroTipologia])
+  }, [bancarelle, filtroStato, filtroTipologia, filtroMercato])
 
   const selected = bancarelle.find((b) => b.id === selectedId) ?? null
 
+  async function handleSalvaForma() {
+    if (!editingShapeId) return
+    const geometry = editableShapeRef.current?.save()
+    if (!geometry) return
+    setSavingShape(true)
+    const { error } = await supabase
+      .from('bancarelle')
+      .update({ geometry_geojson: geometry })
+      .eq('id', editingShapeId)
+    setSavingShape(false)
+    if (error) {
+      alert('Errore nel salvataggio della forma: ' + error.message)
+      return
+    }
+    setEditingShapeId(null)
+    await load()
+  }
+
+  const handleGeometriaDisegnata = useCallback((geometry: GeoGeometry) => {
+    setDrawingNew(false)
+    setNuovaGeometria(geometry)
+  }, [])
+
+  async function handleCreaBancarella(values: Partial<BancarellaInput>): Promise<string | null> {
+    const { error } = await supabase.from('bancarelle').insert(values as BancarellaInput)
+    if (error) return error.message
+    setNuovaGeometria(null)
+    await load()
+    return null
+  }
+
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-slate-800">Mappa del mercato</h1>
-        <p className="text-sm text-slate-500">Clicca su una bancarella per vedere i dettagli e assegnare un operatore</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-800">Mappa del mercato</h1>
+          <p className="text-sm text-slate-500">
+            Clicca su una bancarella per vedere i dettagli e assegnare un operatore
+          </p>
+        </div>
+        <button
+          onClick={() => setDrawingNew((v) => !v)}
+          disabled={editingShapeId !== null}
+          className={`rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60 ${
+            drawingNew
+              ? 'bg-slate-700 text-white hover:bg-slate-800'
+              : 'bg-blue-700 text-white hover:bg-blue-800'
+          }`}
+        >
+          {drawingNew ? 'Annulla disegno' : '+ Nuova bancarella (disegna poligono)'}
+        </button>
       </div>
 
       {!isSupabaseConfigured && (
@@ -75,6 +135,21 @@ export default function Mappa() {
       )}
 
       <div className="flex flex-wrap items-end gap-4 mb-4">
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Filtra per mercato</label>
+          <select
+            className="input !w-auto"
+            value={filtroMercato}
+            onChange={(e) => setFiltroMercato(e.target.value)}
+          >
+            <option value="tutti">Tutti i mercati</option>
+            {mercati.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.nome}
+              </option>
+            ))}
+          </select>
+        </div>
         <div>
           <label className="block text-xs font-medium text-slate-500 mb-1">Filtra per stato</label>
           <select
@@ -111,7 +186,10 @@ export default function Mappa() {
         </div>
       </div>
 
-      <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm" style={{ height: '600px' }}>
+      <div
+        className="relative rounded-xl overflow-hidden border border-slate-200 shadow-sm"
+        style={{ height: '600px' }}
+      >
         {loading ? (
           <div className="h-full flex items-center justify-center text-slate-400 text-sm">Caricamento mappa…</div>
         ) : (
@@ -120,12 +198,57 @@ export default function Mappa() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <FitBounds bancarelle={bancarelle} />
+            <FitBounds bancarelle={filtrate} />
             <FlyToSelected bancarella={selected} />
-            {filtrate.map((b) => (
-              <BancarellaShape key={b.id} bancarella={b} onClick={() => setSelectedId(b.id)} />
-            ))}
+            <DrawControl active={drawingNew} onCreated={handleGeometriaDisegnata} />
+            {filtrate.map((b) =>
+              b.id === editingShapeId ? (
+                <EditableShape key={b.id} ref={editableShapeRef} bancarella={b} />
+              ) : (
+                <BancarellaShape
+                  key={b.id}
+                  bancarella={b}
+                  onClick={() => {
+                    if (!drawingNew) setSelectedId(b.id)
+                  }}
+                />
+              ),
+            )}
           </MapContainer>
+        )}
+
+        {drawingNew && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-3 rounded-lg bg-white shadow-lg border border-slate-200 px-4 py-2">
+            <span className="text-sm text-slate-600">
+              Clicca sulla mappa per posizionare i vertici, doppio click (o clicca sul primo vertice) per chiudere il
+              poligono
+            </span>
+            <button
+              onClick={() => setDrawingNew(false)}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Annulla
+            </button>
+          </div>
+        )}
+
+        {editingShapeId && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-3 rounded-lg bg-white shadow-lg border border-slate-200 px-4 py-2">
+            <span className="text-sm text-slate-600">Trascina i vertici per modificare la forma</span>
+            <button
+              onClick={handleSalvaForma}
+              disabled={savingShape}
+              className="rounded-md bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-60"
+            >
+              {savingShape ? 'Salvataggio…' : 'Salva forma'}
+            </button>
+            <button
+              onClick={() => setEditingShapeId(null)}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Annulla
+            </button>
+          </div>
         )}
       </div>
 
@@ -135,10 +258,53 @@ export default function Mappa() {
           operatori={operatori}
           onClose={() => setSelectedId(null)}
           onChanged={load}
+          onEditShape={
+            selected.geometry_geojson.type === 'Polygon'
+              ? () => {
+                  setEditingShapeId(selected.id)
+                  setSelectedId(null)
+                }
+              : undefined
+          }
+        />
+      )}
+
+      {nuovaGeometria && (
+        <BancarellaFormModal
+          bancarella={null}
+          initialGeometry={nuovaGeometria}
+          onClose={() => setNuovaGeometria(null)}
+          onSave={handleCreaBancarella}
         />
       )}
     </div>
   )
+}
+
+/** Attiva/disattiva la modalità di disegno poligoni di Geoman e riporta la geometria completata. */
+function DrawControl({ active, onCreated }: { active: boolean; onCreated: (geometry: GeoGeometry) => void }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (!active) return
+
+    map.pm.enableDraw('Polygon', { allowSelfIntersection: false })
+
+    function handleCreate(e: { layer: L.Layer }) {
+      const layer = e.layer as L.Polygon
+      const geojson = layer.toGeoJSON() as GeoJSON.Feature<GeoJSON.Polygon>
+      layer.remove()
+      onCreated(geojson.geometry as GeoGeometry)
+    }
+
+    map.on('pm:create', handleCreate)
+    return () => {
+      map.off('pm:create', handleCreate)
+      map.pm.disableDraw('Polygon')
+    }
+  }, [active, map, onCreated])
+
+  return null
 }
 
 /** Inquadra la mappa su tutte le bancarelle appena vengono caricate (o ricaricate). */
@@ -171,6 +337,42 @@ function FlyToSelected({ bancarella }: { bancarella: Bancarella | null }) {
 
   return null
 }
+
+/** Rende modificabili i vertici del poligono di una bancarella (trascinamento/aggiunta/rimozione). */
+const EditableShape = forwardRef<{ save: () => GeoGeometry | null }, { bancarella: Bancarella }>(
+  function EditableShape({ bancarella }, ref) {
+    const layerRef = useRef<L.Polygon | null>(null)
+
+    useEffect(() => {
+      const layer = layerRef.current
+      if (!layer) return
+      layer.pm.enable({ allowSelfIntersection: false })
+      return () => {
+        layer.pm.disable()
+      }
+    }, [])
+
+    useImperativeHandle(ref, () => ({
+      save: () => {
+        const layer = layerRef.current
+        if (!layer) return null
+        const geojson = layer.toGeoJSON() as GeoJSON.Feature<GeoJSON.Polygon>
+        return geojson.geometry as GeoGeometry
+      },
+    }))
+
+    const geometry = bancarella.geometry_geojson
+    if (geometry.type !== 'Polygon') return null
+
+    return (
+      <Polygon
+        ref={layerRef}
+        positions={polygonRings(geometry)[0]}
+        pathOptions={{ color: '#2563eb', weight: 3, dashArray: '6 6', fillOpacity: 0.15 }}
+      />
+    )
+  },
+)
 
 function BancarellaShape({ bancarella, onClick }: { bancarella: Bancarella; onClick: () => void }) {
   const geometry = bancarella.geometry_geojson

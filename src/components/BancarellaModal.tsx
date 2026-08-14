@@ -15,11 +15,13 @@ export default function BancarellaModal({
   operatori,
   onClose,
   onChanged,
+  onEditShape,
 }: {
   bancarella: Bancarella
   operatori: Operatore[]
   onClose: () => void
   onChanged: () => void
+  onEditShape?: () => void
 }) {
   const [storia, setStoria] = useState<AssegnazioneConDettagli[]>([])
   const [loadingStoria, setLoadingStoria] = useState(true)
@@ -131,6 +133,14 @@ export default function BancarellaModal({
               className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               Libera posto
+            </button>
+          )}
+          {onEditShape && (
+            <button
+              onClick={onEditShape}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Modifica forma
             </button>
           )}
         </div>
