@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient'
 import type { Operatore, OperatoreInput } from '../types'
 import OperatoreFormModal from '../components/OperatoreFormModal'
+import OperatoriImportPanel from '../components/OperatoriImportPanel'
 import { downloadCsv } from '../utils/csv'
 
 export default function Operatori() {
@@ -10,6 +11,7 @@ export default function Operatori() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<Operatore | null | 'new'>(null)
+  const [importing, setImporting] = useState(false)
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -85,6 +87,12 @@ export default function Operatori() {
           <p className="text-sm text-slate-500">Anagrafica degli operatori del mercato</p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={() => setImporting(true)}
+            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Importa da Excel/CSV
+          </button>
           <button
             onClick={handleExport}
             disabled={operatori.length === 0}
@@ -185,6 +193,10 @@ export default function Operatori() {
           onClose={() => setEditing(null)}
           onSave={handleSave}
         />
+      )}
+
+      {importing && (
+        <OperatoriImportPanel onClose={() => setImporting(false)} onImported={load} />
       )}
     </div>
   )

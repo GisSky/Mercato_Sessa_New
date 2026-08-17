@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { MapContainer, TileLayer, CircleMarker, Polygon, Tooltip, useMap } from 'react-leaflet'
+import { useSearchParams } from 'react-router-dom'
+import { MapContainer, TileLayer, WMSTileLayer, LayersControl, CircleMarker, Polygon, Tooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css'
@@ -11,11 +12,15 @@ import BancarellaModal from '../components/BancarellaModal'
 import BancarellaFormModal from '../components/BancarellaFormModal'
 import { geometryLatLngs, polygonRings } from '../utils/geo'
 import { useMercati } from '../hooks/useMercati'
+import { isOrtofotoConfigured, ortofotoConfig, isEsriOrtofotoConfigured, esriOrtofotoConfig } from '../lib/ortofoto'
+import EsriImageLayer from '../components/EsriImageLayer'
 
 const DEFAULT_CENTER: [number, number] = [41.9028, 12.4964]
 
 export default function Mappa() {
   const { mercati } = useMercati()
+  const [searchParams] = useSearchParams()
+  const highlightId = searchParams.get('evidenzia')
   const [bancarelle, setBancarelle] = useState<Bancarella[]>([])
   const [operatori, setOperatori] = useState<Operatore[]>([])
   const [loading, setLoading] = useState(true)
@@ -70,6 +75,7 @@ export default function Mappa() {
   }, [bancarelle, filtroStato, filtroTipologia, filtroMercato])
 
   const selected = bancarelle.find((b) => b.id === selectedId) ?? null
+  const highlighted = highlightId ? (bancarelle.find((b) => b.id === highlightId) ?? null) : null
 
   async function handleSalvaForma() {
     if (!editingShapeId) return
@@ -194,12 +200,30 @@ export default function Mappa() {
           <div className="h-full flex items-center justify-center text-slate-400 text-sm">Caricamento mappa…</div>
         ) : (
           <MapContainer center={DEFAULT_CENTER} zoom={16} style={{ height: '100%', width: '100%' }}>
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
+            <LayersControl position="topright">
+              <LayersControl.BaseLayer checked name="Stradale">
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+              </LayersControl.BaseLayer>
+              {isOrtofotoConfigured && (
+                <LayersControl.BaseLayer name="Ortofoto (nazionale)">
+                  <WMSTileLayer
+                    url={ortofotoConfig.url}
+                    params={{ layers: ortofotoConfig.layer, format: 'image/png', transparent: true }}
+                    attribution={ortofotoConfig.attribution}
+                  />
+                </LayersControl.BaseLayer>
+              )}
+              {isEsriOrtofotoConfigured && (
+                <LayersControl.BaseLayer name="Ortofoto (regionale)">
+                  <EsriImageLayer url={esriOrtofotoConfig.url} attribution={esriOrtofotoConfig.attribution} />
+                </LayersControl.BaseLayer>
+              )}
+            </LayersControl>
             <FitBounds bancarelle={filtrate} />
-            <FlyToSelected bancarella={selected} />
+            <FlyToSelected bancarella={selected ?? highlighted} />
             <DrawControl active={drawingNew} onCreated={handleGeometriaDisegnata} />
             {filtrate.map((b) =>
               b.id === editingShapeId ? (
@@ -208,6 +232,7 @@ export default function Mappa() {
                 <BancarellaShape
                   key={b.id}
                   bancarella={b}
+                  highlighted={b.id === highlightId}
                   onClick={() => {
                     if (!drawingNew) setSelectedId(b.id)
                   }}
@@ -374,16 +399,26 @@ const EditableShape = forwardRef<{ save: () => GeoGeometry | null }, { bancarell
   },
 )
 
-function BancarellaShape({ bancarella, onClick }: { bancarella: Bancarella; onClick: () => void }) {
+const COLORE_EVIDENZIATO = '#2563eb'
+
+function BancarellaShape({
+  bancarella,
+  highlighted,
+  onClick,
+}: {
+  bancarella: Bancarella
+  highlighted?: boolean
+  onClick: () => void
+}) {
   const geometry = bancarella.geometry_geojson
-  const colore = statoBancarellaColors[bancarella.stato]
-  const pathOptions = { color: colore, fillColor: colore, fillOpacity: 0.55, weight: 2 }
+  const colore = highlighted ? COLORE_EVIDENZIATO : statoBancarellaColors[bancarella.stato]
+  const pathOptions = { color: colore, fillColor: colore, fillOpacity: 0.55, weight: highlighted ? 4 : 2 }
 
   if (geometry.type === 'Point') {
     return (
       <CircleMarker
         center={[geometry.coordinates[1], geometry.coordinates[0]]}
-        radius={14}
+        radius={highlighted ? 18 : 14}
         pathOptions={{ ...pathOptions, fillOpacity: 0.85 }}
         eventHandlers={{ click: onClick }}
       >

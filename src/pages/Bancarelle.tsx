@@ -3,6 +3,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient'
 import type { Bancarella, BancarellaInput } from '../types'
 import { StatoBancarellaBadge } from '../components/StatoBadge'
 import BancarellaFormModal from '../components/BancarellaFormModal'
+import BancarellaMapPreview from '../components/BancarellaMapPreview'
 import { useMercati } from '../hooks/useMercati'
 import { geometryCentroid } from '../utils/geo'
 
@@ -13,6 +14,7 @@ export default function Bancarelle() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<Bancarella | null | 'new'>(null)
+  const [previewId, setPreviewId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -32,6 +34,7 @@ export default function Bancarelle() {
   }
 
   const mercatoNomeById = useMemo(() => new Map(mercati.map((m) => [m.id, m.nome])), [mercati])
+  const preview = bancarelle.find((b) => b.id === previewId) ?? null
 
   const defaultCenter = useMemo<[number, number] | undefined>(() => {
     if (bancarelle.length === 0) return undefined
@@ -83,7 +86,7 @@ export default function Bancarelle() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+      <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-slate-800">Bancarelle</h1>
           <p className="text-sm text-slate-500">Elenco, modifica ed eliminazione dei posti del mercato</p>
@@ -94,6 +97,14 @@ export default function Bancarelle() {
         >
           + Nuova bancarella
         </button>
+
+        {preview && (
+          <BancarellaMapPreview
+            bancarella={preview}
+            mercatoNome={mercatoNomeById.get(preview.mercato_id ?? '') ?? null}
+            onClose={() => setPreviewId(null)}
+          />
+        )}
       </div>
 
       {!isSupabaseConfigured && (
@@ -145,7 +156,11 @@ export default function Bancarelle() {
             )}
             {!loading &&
               filtrate.map((b) => (
-                <tr key={b.id} className="hover:bg-slate-50">
+                <tr
+                  key={b.id}
+                  onClick={() => setPreviewId(b.id)}
+                  className="hover:bg-slate-50 cursor-pointer"
+                >
                   <td className="px-4 py-3 font-medium text-slate-700">{b.id_posto}</td>
                   <td className="px-4 py-3">
                     <StatoBancarellaBadge stato={b.stato} />
@@ -155,10 +170,22 @@ export default function Bancarelle() {
                   <td className="px-4 py-3 text-slate-500">{mercatoNomeById.get(b.mercato_id ?? '') ?? '—'}</td>
                   <td className="px-4 py-3 text-slate-500">{b.note || '—'}</td>
                   <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
-                    <button onClick={() => setEditing(b)} className="text-blue-700 hover:underline font-medium">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setEditing(b)
+                      }}
+                      className="text-blue-700 hover:underline font-medium"
+                    >
                       Modifica
                     </button>
-                    <button onClick={() => handleDelete(b)} className="text-red-600 hover:underline font-medium">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDelete(b)
+                      }}
+                      className="text-red-600 hover:underline font-medium"
+                    >
                       Elimina
                     </button>
                   </td>
