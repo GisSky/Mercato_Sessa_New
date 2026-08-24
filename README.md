@@ -1,6 +1,6 @@
 # Mercato Digitale Comunale
 
-Web app gestionale per il Comune per la gestione delle bancarelle di un mercato: operatori, posti/bancarelle su mappa interattiva, assegnazioni e pagamenti.
+Web app gestionale per il Comune per la gestione di uno o più mercati: operatori, posti/bancarelle su mappa interattiva, assegnazioni e pagamenti.
 
 Stack: **React + Vite + TypeScript**, **Supabase** (database, auth), **Leaflet** (mappa), **Tailwind CSS** (stile).
 
@@ -49,14 +49,17 @@ Apri [http://localhost:5173](http://localhost:5173) e accedi con l'utente creato
 
 - **Login**: autenticazione tramite Supabase Auth (email/password).
 - **Dashboard**: totale posti, liberi, occupati, riservati.
-- **Mappa interattiva** (Leaflet): bancarelle colorate per stato (verde = libero, rosso = occupato, giallo = riservato). Click su una bancarella per vedere i dettagli, assegnare un operatore o liberare il posto. Filtri per stato e tipologia.
-- **Operatori**: tabella con ricerca (nome, cognome, codice, CF/P.IVA, email), form di inserimento/modifica, eliminazione, esportazione CSV.
+- **Mercati multipli**: creazione e selezione della piazza/area mercatale, con bancarelle collegate al mercato di appartenenza.
+- **Mappa interattiva** (Leaflet): bancarelle colorate per stato (verde = libero, rosso = occupato, giallo = riservato). Click su una bancarella per vedere i dettagli, assegnare un operatore o liberare il posto. Filtri per stato e tipologia; ortofoto WMS o ArcGIS ImageServer opzionale.
+- **Bancarelle**: elenco dedicato, inserimento/modifica e anteprima cartografica.
+- **Operatori**: tabella con ricerca (nome, cognome, codice, CF/P.IVA, email), form di inserimento/modifica, eliminazione, importazione CSV/Excel ed esportazione CSV.
 - **Assegnazioni**: storico assegnazioni operatore–bancarella con stato pagamento, filtro per stato pagamento, esportazione CSV.
 - **Importa bancarelle**: caricamento diretto dall'app di un file GeoJSON o di uno shapefile compresso (.zip), con anteprima e importazione in blocco.
 
 ## Struttura del database
 
 - **operatori**: anagrafica degli operatori del mercato.
+- **mercati**: piazze o aree mercatali distinte gestite dal Comune.
 - **bancarelle**: i posti del mercato, con stato (`libero`/`occupato`/`riservato`), tipologia, superficie e posizione geografica (`geometry_geojson`, GeoJSON `Point`, `Polygon` o `MultiPolygon` — la mappa disegna un pallino per i `Point` e la forma piena per `Polygon`/`MultiPolygon`).
 - **assegnazioni**: collega un operatore a una bancarella per una data di mercato, con stato pagamento (`pagato`/`non_pagato`/`in_attesa`).
 
@@ -110,6 +113,7 @@ Richiede la chiave **service_role** (Project Settings → API), che bypassa la R
 ## Note sulla sicurezza
 
 - Le tabelle hanno **Row Level Security** attiva: solo gli utenti autenticati (login effettuato) possono leggere/scrivere i dati.
+- Le policy attuali danno accesso completo a tutti gli utenti autenticati: prima di un rilascio multi-Comune occorre introdurre ruoli e isolamento per ente.
 - La chiave `anon` è pubblica per design (usata dal client Supabase), la sicurezza è garantita dalle policy RLS e dall'obbligo di login.
 - Non committare mai il file `.env` con le chiavi reali (è già escluso da `.gitignore`).
 
