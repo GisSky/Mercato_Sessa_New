@@ -16,6 +16,6 @@ Non serve aggiornarlo per micro-modifiche (typo, piccolo fix di stile, aggiustam
 ## Altre convenzioni del progetto
 
 - Interfaccia e testi utente in italiano (personale comunale non tecnico)
-- Il percorso del progetto contiene una `&` (`01_Ricerca&Sviluppo`): `npm run dev`/`npm run build` da terminale possono rompersi su Windows per via di `cmd.exe`. Se succede, lancia direttamente `node node_modules/vite/bin/vite.js` (dev) o `... build`.
+- Il percorso del progetto contiene una `&` (`01_Ricerca&Sviluppo`), che `cmd.exe` interpreta come separatore di comandi e che romperebbe gli shim `.cmd` di `node_modules/.bin`. Per questo gli script di `package.json` invocano i binari direttamente con `node` (`node node_modules/vite/bin/vite.js`, ecc.): `npm run dev`/`build`/`lint` funzionano normalmente. Se aggiungi un nuovo script che usa un binario di `node_modules`, segui la stessa forma invece di scrivere il nome nudo del comando.
 - `.env` non è versionato: contiene le chiavi Supabase reali. `.env.example` documenta le variabili disponibili.
 - Le tabelle Supabase hanno RLS attiva per soli utenti autenticati — non serve la chiave `service_role` nel frontend.

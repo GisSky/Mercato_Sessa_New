@@ -36,6 +36,7 @@ Decisioni prese subito, insieme all'utente:
 - `bancarelle.mercato_id` collega ogni posto al suo mercato
 - Nuovo hook `useMercati` e possibilità di scegliere/creare un mercato direttamente durante l'importazione
 - Nuova pagina **Bancarelle**: elenco/modifica dedicata (prima la gestione passava solo dalla mappa), con `BancarellaFormModal`
+- **Disegno dei poligoni sulla mappa** con Leaflet-Geoman (`@geoman-io/leaflet-geoman-free`): si può tracciare a mano la sagoma di una bancarella invece di importarla da file
 - **Dashboard arricchita**: gauge e grafici a barre (componenti custom in `components/charts/`) su occupazione posti, copertura operatori, tipologie, composizione per mercato
 
 ## Fase 3 — Ortofoto, import operatori, fix login (commit [`3284621`](https://github.com/GisSky/Mercato_Sessa_New/commit/3284621), 17 ago 2026)
@@ -57,6 +58,15 @@ Decisioni prese subito, insieme all'utente:
 
 ---
 
+## Fase 5 — `npm run dev` riparato sui percorsi con `&` (26 agosto 2026)
+
+- Sintomo: `npm run dev` non avviava l'app, con `"...\node_modules\.bin\\" non è riconosciuto come comando` seguito da `Cannot find module 'D:\Archivio\00_PLANETGIS_SKY\06_Progetti\vite\bin\vite.js'`.
+- Causa: npm su Windows esegue gli script tramite `cmd.exe`, che tratta la `&` di `01_Ricerca&Sviluppo` come separatore di comandi e spezza in due il percorso passato dallo shim `node_modules\.bin\vite.cmd`.
+- Fix: gli script di `package.json` (`dev`, `build`, `lint`, `preview`) invocano ora i binari direttamente via `node` (es. `node node_modules/vite/bin/vite.js`), riga di comando che non contiene `&` e che `cmd.exe` non spezza. Il workaround manuale documentato in precedenza non serve più.
+- Verificato: `npm run dev` (server pronto e pagina servita), `npm run build` (type-check + build ok) e `npm run lint` (soli tre avvisi noti, nessun errore).
+
+---
+
 ## Stato attuale
 
 - Repository consolidato con remote GitHub `github.com/GisSky/Mercato_Sessa_New`
@@ -69,7 +79,7 @@ Decisioni prese subito, insieme all'utente:
 1. Apri la cartella in VS Code (o in questa sessione)
 2. `npm install` per allineare le dipendenze
 3. Verifica che `.env` contenga URL/anon key Supabase corretti (non è versionato su git)
-4. `npm run dev` per avviare il server locale (se lanci da terminale e hai lo stesso problema della `&` nel percorso, usa `node node_modules/vite/bin/vite.js` invece di `npm run dev`)
+4. `npm run dev` per avviare il server locale (funziona da qualsiasi terminale: vedi Fase 5 per il perché gli script chiamano `node` esplicitamente)
 5. Per lo stato del database (tabelle, righe, eventuali migrazioni SQL non ancora applicate), usa il connettore Supabase MCP se disponibile, oppure la dashboard di Supabase direttamente
 
 Per l'installazione da zero su una macchina nuova, segui invece il [README.md](README.md).
